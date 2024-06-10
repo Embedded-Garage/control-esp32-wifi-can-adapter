@@ -14,6 +14,7 @@ class CANApp:
         self.speed = tk.StringVar()
         self.filter_acr = tk.StringVar()
         self.filter_amr = tk.StringVar()
+        self.filter_single = tk.BooleanVar()
         self.can_id = tk.StringVar()
         self.dlc = tk.StringVar()
         self.data = tk.StringVar()
@@ -47,29 +48,30 @@ class CANApp:
         ttk.Entry(frame, textvariable=self.filter_acr).grid(row=6, column=1, sticky=(tk.W, tk.E))
         ttk.Label(frame, text="Filter AMR:").grid(row=7, column=0, sticky=tk.W)
         ttk.Entry(frame, textvariable=self.filter_amr).grid(row=7, column=1, sticky=(tk.W, tk.E))
-        ttk.Button(frame, text="Set Filter", command=self.set_filter).grid(row=8, column=0, columnspan=2, sticky=(tk.W, tk.E))
+        ttk.Checkbutton(frame, text="Single filter", variable=self.filter_single).grid(row=8, column=0, columnspan=2, sticky=tk.W)
+        ttk.Button(frame, text="Set Filter", command=self.set_filter).grid(row=9, column=0, columnspan=2, sticky=(tk.W, tk.E))
 
-        ttk.Separator(frame, orient=tk.HORIZONTAL).grid(row=9, column=0, columnspan=2, pady=10, sticky=(tk.W, tk.E))
+        ttk.Separator(frame, orient=tk.HORIZONTAL).grid(row=10, column=0, columnspan=2, pady=10, sticky=(tk.W, tk.E))
 
-        ttk.Label(frame, text="CAN ID:").grid(row=10, column=0, sticky=tk.W)
-        ttk.Entry(frame, textvariable=self.can_id).grid(row=10, column=1, sticky=(tk.W, tk.E))
-        ttk.Label(frame, text="DLC:").grid(row=11, column=0, sticky=tk.W)
-        ttk.Entry(frame, textvariable=self.dlc).grid(row=11, column=1, sticky=(tk.W, tk.E))
-        ttk.Label(frame, text="Data:").grid(row=12, column=0, sticky=tk.W)
-        ttk.Entry(frame, textvariable=self.data).grid(row=12, column=1, sticky=(tk.W, tk.E))
-        ttk.Checkbutton(frame, text="Extended ID", variable=self.extd).grid(row=13, column=0, columnspan=2, sticky=tk.W)
-        ttk.Button(frame, text="Send CAN Frame", command=self.send_can_frame).grid(row=14, column=0, columnspan=2, sticky=(tk.W, tk.E))
+        ttk.Label(frame, text="CAN ID:").grid(row=11, column=0, sticky=tk.W)
+        ttk.Entry(frame, textvariable=self.can_id).grid(row=11, column=1, sticky=(tk.W, tk.E))
+        ttk.Label(frame, text="DLC:").grid(row=12, column=0, sticky=tk.W)
+        ttk.Entry(frame, textvariable=self.dlc).grid(row=12, column=1, sticky=(tk.W, tk.E))
+        ttk.Label(frame, text="Data:").grid(row=13, column=0, sticky=tk.W)
+        ttk.Entry(frame, textvariable=self.data).grid(row=13, column=1, sticky=(tk.W, tk.E))
+        ttk.Checkbutton(frame, text="Extended ID", variable=self.extd).grid(row=14, column=0, columnspan=2, sticky=tk.W)
+        ttk.Button(frame, text="Send CAN Frame", command=self.send_can_frame).grid(row=15, column=0, columnspan=2, sticky=(tk.W, tk.E))
 
-        ttk.Separator(frame, orient=tk.HORIZONTAL).grid(row=15, column=0, columnspan=2, pady=10, sticky=(tk.W, tk.E))
+        ttk.Separator(frame, orient=tk.HORIZONTAL).grid(row=16, column=0, columnspan=2, pady=10, sticky=(tk.W, tk.E))
 
         self.log_text = tk.Text(frame, height=10, width=50)
-        self.log_text.grid(row=16, column=0, columnspan=2, sticky=(tk.W, tk.E))
+        self.log_text.grid(row=17, column=0, columnspan=2, sticky=(tk.W, tk.E))
         
     def connect(self):
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.connect((self.ip.get(), self.port.get()))
-            self.log_message("Connected to ESP32")
+            self.log_message("Connected to ESP32\r\n")
             threading.Thread(target=self.receive_data).start()
         except Exception as e:
             messagebox.showerror("Connection Error", str(e))
@@ -78,15 +80,20 @@ class CANApp:
         try:
             speed_command = f"AT+SPEED={self.speed.get()}\r\n"
             self.sock.sendall(speed_command.encode())
-            self.log_message("Speed set to " + self.speed.get())
+            self.log_message(speed_command)
         except Exception as e:
             messagebox.showerror("Set Speed Error", str(e))
         
     def set_filter(self):
         try:
-            filter_command = f"AT+FILTER={self.filter_acr.get()},{self.filter_amr.get()},1\r\n"
+            filter_single = self.filter_single.get()
+            if filter_single:
+                filter_single = 1
+            else:
+                filter_single = 0
+            filter_command = f"AT+FILTER={self.filter_acr.get()},{self.filter_amr.get()},{str(filter_single)}\r\n"
             self.sock.sendall(filter_command.encode())
-            self.log_message("Filter set: ACR=" + self.filter_acr.get() + ", AMR=" + self.filter_amr.get())
+            self.log_message(filter_command)
         except Exception as e:
             messagebox.showerror("Set Filter Error", str(e))
         
@@ -95,7 +102,7 @@ class CANApp:
             extd = 1 if self.extd.get() else 0
             send_command = f"AT+SEND={self.can_id.get()},{self.dlc.get()},{extd},{self.data.get()}\r\n"
             self.sock.sendall(send_command.encode())
-            self.log_message("Sent CAN Frame: ID=" + self.can_id.get() + ", DLC=" + self.dlc.get() + ", Data=" + self.data.get())
+            self.log_message(send_command)
         except Exception as e:
             messagebox.showerror("Send CAN Frame Error", str(e))
         
@@ -106,10 +113,10 @@ class CANApp:
                 if data:
                     self.log_message(data.decode())
         except Exception as e:
-            self.log_message("Receive Error: " + str(e))
+            self.log_message("Receive Error: " + str(e) + "\r\n")
         
     def log_message(self, message):
-        self.log_text.insert(tk.END, message + "\n")
+        self.log_text.insert(tk.END, message)
         self.log_text.see(tk.END)
 
 def main():
